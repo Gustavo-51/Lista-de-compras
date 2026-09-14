@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Compras">
+<meta name="theme-color" content="#F7F3EA">
+<title>Lista de Compras</title>
+<style>
+  :root{
+    --paper:#F7F3EA;
+    --paper-line:#E4DCC8;
+    --ink:#2B2620;
+    --ink-soft:#6B6355;
+    --need:#C1542C;
+    --need-bg:#FBEAE0;
+    --cart:#4C7A5A;
+    --cart-bg:#E9F1EA;
+    --limpeza:#7C9CBF;
+    --mercearia:#C98CA0;
+    --frutas:#8FAE63;
+    --higiene:#A9A297;
+    --frios:#D8B23C;
+    --carnes:#C08552;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Georgia','Iowan Old Style',serif;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:100px;
+  }
+  .wrap{max-width:640px;margin:0 auto;padding:20px 16px 0;}
+
+  header{
+    position:sticky; top:0; z-index:20;
+    background:var(--paper);
+    border-bottom:1px solid var(--paper-line);
+    padding:14px 16px 12px;
+  }
+  header .titlebar{max-width:640px;margin:0 auto;display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
+  h1{font-size:22px; margin:0; font-weight:normal; letter-spacing:0.2px;}
+  h1 em{font-style:italic; color:var(--need);}
+  .subtitle{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:12px; color:var(--ink-soft); margin-top:2px;}
+
+  .sync-status{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:11px; display:flex; align-items:center; gap:5px; color:var(--ink-soft);
+  }
+  .dot{width:7px;height:7px;border-radius:50%;background:#C7BFA9;}
+  .dot.on{background:var(--cart);}
+
+  .counts{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    display:flex; gap:10px; margin-top:10px; max-width:640px; margin-left:auto; margin-right:auto;
+  }
+  .count-pill{flex:1; text-align:center; border-radius:10px; padding:8px 6px; font-size:12px;}
+  .count-pill .num{display:block; font-size:19px; font-weight:600; line-height:1.15;}
+  .count-pill.need{background:var(--need-bg); color:var(--need);}
+  .count-pill.cart{background:var(--cart-bg); color:var(--cart);}
+  .count-pill.total{background:#EEE8D9; color:var(--ink-soft);}
+
+  .search{margin-top:10px;}
+  .search input{
+    width:100%; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:14px; padding:9px 12px; border-radius:9px; border:1px solid var(--paper-line);
+    background:#fff; color:var(--ink); outline:none;
+  }
+  .search input:focus{border-color:var(--ink-soft);}
+
+  .toolbar{display:flex; gap:8px; margin-top:10px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+  .toolbar button{
+    flex:1; font-size:12px; padding:8px 6px; border-radius:8px; border:1px solid var(--paper-line);
+    background:#fff; color:var(--ink-soft); cursor:pointer;
+  }
+  .toolbar button:active{transform:scale(0.97);}
+
+  .cat{margin-top:22px;}
+  .cat-head{
+    display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none;
+    padding-bottom:6px; border-bottom:2px solid var(--cat-color, var(--ink));
+  }
+  .cat-swatch{width:11px; height:11px; border-radius:3px; background:var(--cat-color); flex-shrink:0;}
+  .cat-head h2{font-size:16px; margin:0; font-weight:normal; letter-spacing:0.3px;}
+  .cat-head .chev{margin-left:auto; font-size:12px; color:var(--ink-soft); transition:transform .15s ease; font-family:sans-serif;}
+  .cat.collapsed .chev{transform:rotate(-90deg);}
+  .cat-head .cat-remaining{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:11px; color:var(--ink-soft);}
+
+  ul.items{list-style:none; margin:8px 0 0; padding:0;}
+  .cat.collapsed ul.items{display:none;}
+
+  li.item{
+    display:flex; align-items:center; gap:11px;
+    padding:9px 2px; border-bottom:1px solid var(--paper-line);
+    cursor:pointer; transition:background .12s ease;
+  }
+  li.item:active{background:#00000006;}
+
+  .box{
+    width:21px; height:21px; border-radius:6px; flex-shrink:0;
+    border:1.6px solid var(--ink-soft);
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px; color:#fff; font-family:sans-serif;
+    transition:all .15s ease;
+  }
+  li.item[data-state="0"] .box{background:transparent;}
+  li.item[data-state="1"] .box{background:var(--need); border-color:var(--need);}
+  li.item[data-state="2"] .box{background:var(--cart); border-color:var(--cart);}
+
+  .item-name{font-size:15.5px; line-height:1.3;}
+  li.item[data-state="1"] .item-name{color:var(--need); font-weight:600;}
+  li.item[data-state="2"] .item-name{color:var(--ink-soft); text-decoration:line-through; text-decoration-color:#9DB9A3;}
+
+  .empty-search{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; text-align:center; color:var(--ink-soft); font-size:13px; padding:30px 0;}
+
+  footer{
+    position:fixed; left:0; right:0; bottom:0;
+    background:linear-gradient(180deg, rgba(247,243,234,0), var(--paper) 30%);
+    padding:18px 16px 16px; z-index:20;
+  }
+  .footer-inner{max-width:640px; margin:0 auto; display:flex; gap:10px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+  .cart-btn{flex:1; text-align:center; padding:13px; border-radius:12px; border:none; font-size:14.5px; font-weight:600; cursor:pointer; background:var(--ink); color:#fff;}
+  .cart-btn:active{transform:scale(0.98);}
+  .add-btn{padding:13px 16px; border-radius:12px; border:1.4px solid var(--ink); background:transparent; color:var(--ink); font-size:14.5px; cursor:pointer;}
+
+  .hint{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:11.5px; color:var(--ink-soft); text-align:center; margin-top:6px;}
+
+  .modal-backdrop{position:fixed; inset:0; background:rgba(43,38,32,0.4); z-index:50; display:flex; align-items:flex-end; justify-content:center;}
+  .modal{background:var(--paper); width:100%; max-width:640px; border-radius:16px 16px 0 0; padding:20px 18px 24px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+  .modal h3{margin:0 0 12px; font-family:Georgia,serif; font-weight:normal; font-size:17px;}
+  .modal select, .modal input{width:100%; padding:10px; border-radius:8px; border:1px solid var(--paper-line); font-size:14px; margin-bottom:10px; background:#fff; color:var(--ink);}
+  .modal-actions{display:flex; gap:10px; margin-top:6px;}
+  .modal-actions button{flex:1; padding:11px; border-radius:9px; border:none; font-size:14px; cursor:pointer;}
+  .modal-actions .cancel{background:#EEE8D9; color:var(--ink-soft);}
+  .modal-actions .confirm{background:var(--ink); color:#fff;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="titlebar">
+    <div>
+      <h1>Lista de <em>Compras</em></h1>
+      <div class="subtitle">toque 1x: falta · toque 2x: no carrinho</div>
+    </div>
+    <div class="sync-status"><span class="dot" id="syncDot"></span><span id="syncText">conectando...</span></div>
+  </div>
+  <div class="counts">
+    <div class="count-pill need"><span class="num" id="countNeed">0</span>faltando</div>
+    <div class="count-pill cart"><span class="num" id="countCart">0</span>no carrinho</div>
+    <div class="count-pill total"><span class="num" id="countTotal">0</span>itens</div>
+  </div>
+  <div class="search"><input type="text" id="searchInput" placeholder="Buscar item..."></div>
+  <div class="toolbar">
+    <button id="btnShowNeed">Ver só faltando</button>
+    <button id="btnShowAll">Ver tudo</button>
+    <button id="btnNewTrip">Nova feira</button>
+  </div>
+</header>
+
+<div class="wrap" id="catContainer"></div>
+
+<footer>
+  <div class="footer-inner">
+    <button class="add-btn" id="btnAddItem">+ item</button>
+    <button class="cart-btn" id="btnMarkNeeded">Marcar tudo que falta</button>
+  </div>
+  <div class="hint" id="statusHint"></div>
+</footer>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getDatabase, ref, onValue, set, get } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBhVp-f2J9DeDy75NuR5eLkj05RBnuO8Ww",
+  authDomain: "lista-compras-mercado-ad045.firebaseapp.com",
+  databaseURL: "https://lista-compras-mercado-ad045-default-rtdb.firebaseio.com",
+  projectId: "lista-compras-mercado-ad045",
+  storageBucket: "lista-compras-mercado-ad045.firebasestorage.app",
+  messagingSenderId: "849021789947",
+  appId: "1:849021789947:web:4bf8aaf2abeed8fddbf25e"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const stateRef = ref(db, 'estadoItens');
+const customRef = ref(db, 'itensPersonalizados');
+
+const CATEGORIES = [
+  { id: 'limpeza', name: 'Materiais de Limpeza', color: 'var(--limpeza)', items: [
+    "Água sanitária","Desinfetante","Sabão em pó ALA","Sabão em pó OMO","Sabão em barra","Sabão líquido","Amaciante","Limpa vidros","Limpa BOX","Detergente","Veja Floral","Álcool","Bombril","Esponja de prato","Vassoura","Rodo","Pano de chão","Papel toalha","Papel filme","Papel alumínio","Copo descartável","Prato descartável","Colher e garfo descartáveis","Saco de Lixo 50L","Saco de Lixo 100L","Saco de congelamento"
+  ]},
+  { id: 'mercearia', name: 'Mercearia', color: 'var(--mercearia)', items: [
+    "Arroz integral","Arroz branco","Arroz arbóreo ou carnaroli","Chocolate em barra","Chocolate em pó","Feijão preto","Feijão carioca","Feijão verde","Grão de bico","Milho para pipoca","Macarrão","Maionese","Mostarda","Ketchup","Creme de leite","Leite condensado","Farelo de aveia","Tomate pelado","Farinha de trigo","Cuscuz de milho","Cuscuz de arroz","Açúcar mascavo","Açúcar demerara","Açúcar branco","Vinagre","Azeite","Azeitona","Café de coar","Filtro de papel","Café solúvel","Cacau (Qualitcau)","Fermento químico (bolo)","Fermento biológico em saches (pão)","Leite Ninho em pó","Leite líquido integral","Leite em pó","Sal","Vinho branco","Vinho tinto"
+  ]},
+  { id: 'frutas', name: 'Frutas e Verduras', color: 'var(--frutas)', items: [
+    "Alho","Cebola","Cebola roxa","Coentro","Agrião","Alface","Salsão","Salsa","Cebolinha","Pimentão verde","Pimentão vermelho","Pimentão amarelo","Berinjela","Abobrinha","Abacate","Cenoura","Beterraba","Batata inglesa","Batata doce","Inhame","Macaxeira","Goiaba","Uva","Manga","Melão","Mamão","Morango","Maçã","Maçã verde","Laranja","Banana","Vagem","Pimenta dedo de moça","Quiabo","Maxixe","Couve folha","Alecrim","Manjericão","Rúcula"
+  ]},
+  { id: 'frios', name: 'Frios', color: 'var(--frios)', items: [
+    "Queijo cottage grande","Queijo coalho","Queijo de manteiga","Queijo mussarela","Presunto","Manteiga","Iogurte natural","Polpa de fruta"
+  ]},
+  { id: 'carnes', name: 'Carnes', color: 'var(--carnes)', items: [
+    "Carne moída","Costela bovina","Acém para estrogonofe","Carne de sol","Coxinha da asa","Sobrecoxa de frango","Linguiça calabresa","Paio","Osso do patinho","Carneiro","Charque","Bacon","Peito de frango"
+  ]},
+  { id: 'higiene', name: 'Material de Higiene', color: 'var(--higiene)', items: [
+    "Papel higiênico","Sabonete em barra","Pasta de dente","Escova de dente","Cotonete","Algodão","Desodorante","Sabonete infantil","Pasta de dente infantil","Escova de dente infantil","Shampoo infantil","Condicionador infantil","Lenço umedecido"
+  ]}
+];
+
+let state = {};
+let customItems = {};
+let filterMode = 'all';
+let collapsed = {};
+let searchTerm = '';
+
+function safeKey(name){ return name.replace(/[.#$\[\]\/]/g, '_'); }
+function keyFor(catId, name){ return catId + '__' + safeKey(name); }
+
+let writeTimer = null;
+function scheduleWrite(){
+  clearTimeout(writeTimer);
+  writeTimer = setTimeout(()=>{
+    set(stateRef, state).catch(e=> console.error('Falha ao sincronizar', e));
+  }, 200);
+}
+
+function cycleState(catId, name){
+  const k = keyFor(catId, name);
+  const cur = state[k] || 0;
+  const next = (cur + 1) % 3;
+  if(next === 0){ delete state[k]; } else { state[k] = next; }
+  render();
+  scheduleWrite();
+}
+
+function allCategoryItems(cat){
+  const extra = customItems[cat.id] || [];
+  return cat.items.concat(extra);
+}
+
+function countAll(){
+  let need = 0, cart = 0, total = 0;
+  CATEGORIES.forEach(cat=>{
+    allCategoryItems(cat).forEach(name=>{
+      total++;
+      const s = state[keyFor(cat.id, name)] || 0;
+      if(s === 1) need++;
+      if(s === 2) cart++;
+    });
+  });
+  return {need, cart, total};
+}
+
+function render(){
+  const {need, cart, total} = countAll();
+  document.getElementById('countNeed').textContent = need;
+  document.getElementById('countCart').textContent = cart;
+  document.getElementById('countTotal').textContent = total;
+
+  const container = document.getElementById('catContainer');
+  container.innerHTML = '';
+  const term = searchTerm.trim().toLowerCase();
+  let anyVisible = false;
+
+  CATEGORIES.forEach(cat=>{
+    const items = allCategoryItems(cat).filter(name=>{
+      const s = state[keyFor(cat.id, name)] || 0;
+      if(filterMode === 'need' && s !== 1) return false;
+      if(term && !name.toLowerCase().includes(term)) return false;
+      return true;
+    });
+    if(items.length === 0) return;
+    anyVisible = true;
+
+    const catDiv = document.createElement('div');
+    catDiv.className = 'cat' + (collapsed[cat.id] ? ' collapsed' : '');
+    catDiv.style.setProperty('--cat-color', cat.color);
+
+    const remaining = allCategoryItems(cat).filter(n => (state[keyFor(cat.id,n)]||0) === 1).length;
+
+    const head = document.createElement('div');
+    head.className = 'cat-head';
+    head.innerHTML = `<span class="cat-swatch"></span><h2>${cat.name}</h2>
+      <span class="cat-remaining">${remaining > 0 ? remaining + ' falta' + (remaining>1?'m':'') : ''}</span>
+      <span class="chev">▾</span>`;
+    head.addEventListener('click', ()=>{ collapsed[cat.id] = !collapsed[cat.id]; render(); });
+    catDiv.appendChild(head);
+
+    const ul = document.createElement('ul');
+    ul.className = 'items';
+    items.forEach(name=>{
+      const s = state[keyFor(cat.id, name)] || 0;
+      const li = document.createElement('li');
+      li.className = 'item';
+      li.setAttribute('data-state', s);
+      const boxContent = s === 1 ? '!' : (s === 2 ? '✓' : '');
+      li.innerHTML = `<span class="box">${boxContent}</span><span class="item-name">${name}</span>`;
+      li.addEventListener('click', ()=> cycleState(cat.id, name));
+      ul.appendChild(li);
+    });
+    catDiv.appendChild(ul);
+    container.appendChild(catDiv);
+  });
+
+  if(!anyVisible){
+    const empty = document.createElement('div');
+    empty.className = 'empty-search';
+    empty.textContent = filterMode === 'need' ? 'Nada marcado como faltando ainda.' : 'Nenhum item encontrado.';
+    container.appendChild(empty);
+  }
+
+  document.getElementById('statusHint').textContent =
+    cart > 0 && need === 0 ? 'Tudo que faltava já está no carrinho 🛒' : '';
+}
+
+document.getElementById('searchInput').addEventListener('input', (e)=>{ searchTerm = e.target.value; render(); });
+document.getElementById('btnShowNeed').addEventListener('click', ()=>{ filterMode = 'need'; render(); });
+document.getElementById('btnShowAll').addEventListener('click', ()=>{ filterMode = 'all'; render(); });
+
+document.getElementById('btnNewTrip').addEventListener('click', ()=>{
+  Object.keys(state).forEach(k=>{ if(state[k] === 2) delete state[k]; });
+  render();
+  scheduleWrite();
+});
+
+document.getElementById('btnMarkNeeded').addEventListener('click', ()=>{
+  filterMode = 'need'; render(); window.scrollTo({top:0, behavior:'smooth'});
+});
+
+document.getElementById('btnAddItem').addEventListener('click', openAddModal);
+
+function openAddModal(){
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  const catOptions = CATEGORIES.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  backdrop.innerHTML = `
+    <div class="modal">
+      <h3>Adicionar item</h3>
+      <input type="text" id="newItemName" placeholder="Nome do item">
+      <select id="newItemCat">${catOptions}</select>
+      <div class="modal-actions">
+        <button class="cancel" id="cancelAdd">Cancelar</button>
+        <button class="confirm" id="confirmAdd">Adicionar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  document.getElementById('newItemName').focus();
+  document.getElementById('cancelAdd').addEventListener('click', ()=> backdrop.remove());
+  backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+  document.getElementById('confirmAdd').addEventListener('click', ()=>{
+    const name = document.getElementById('newItemName').value.trim();
+    const catId = document.getElementById('newItemCat').value;
+    if(!name) return;
+    if(!customItems[catId]) customItems[catId] = [];
+    customItems[catId].push(name);
+    set(customRef, customItems).catch(e=> console.error('Falha ao salvar item novo', e));
+    backdrop.remove();
+    render();
+  });
+}
+
+// Escuta em tempo real: qualquer mudança feita em outro aparelho chega aqui
+onValue(stateRef, (snapshot)=>{
+  state = snapshot.val() || {};
+  render();
+  document.getElementById('syncDot').classList.add('on');
+  document.getElementById('syncText').textContent = 'sincronizado';
+}, (error)=>{
+  document.getElementById('syncText').textContent = 'sem conexão';
+});
+
+onValue(customRef, (snapshot)=>{
+  customItems = snapshot.val() || {};
+  render();
+});
+</script>
+</body>
+</html>
