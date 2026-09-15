@@ -26,6 +26,7 @@
     --higiene:#A9A297;
     --frios:#D8B23C;
     --carnes:#C08552;
+    --avulsos:#8A7F6B;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -51,10 +52,15 @@
 
   .sync-status{
     font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-    font-size:11px; display:flex; align-items:center; gap:5px; color:var(--ink-soft);
+    font-size:11px; display:flex; align-items:center; gap:6px; color:var(--ink-soft);
+    flex-shrink:0;
   }
   .dot{width:7px;height:7px;border-radius:50%;background:#C7BFA9;}
   .dot.on{background:var(--cart);}
+  .me-btn{
+    border:1px solid var(--paper-line); background:#fff; color:var(--ink-soft);
+    border-radius:20px; padding:3px 10px; font-size:11px; cursor:pointer;
+  }
 
   .counts{
     font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
@@ -113,9 +119,24 @@
   li.item[data-state="1"] .box{background:var(--need); border-color:var(--need);}
   li.item[data-state="2"] .box{background:var(--cart); border-color:var(--cart);}
 
+  .item-text{flex:1; min-width:0;}
   .item-name{font-size:15.5px; line-height:1.3;}
+  .item-note{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:12px; font-style:italic; color:var(--ink-soft); margin-top:1px;}
   li.item[data-state="1"] .item-name{color:var(--need); font-weight:600;}
   li.item[data-state="2"] .item-name{color:var(--ink-soft); text-decoration:line-through; text-decoration-color:#9DB9A3;}
+
+  .initials{
+    width:19px; height:19px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:9px; font-weight:700; color:#fff;
+  }
+  .note-btn{
+    flex-shrink:0; border:none; background:none; font-size:14px; color:var(--paper-line);
+    padding:4px 2px; cursor:pointer; font-family:sans-serif;
+  }
+  li.item[data-state="0"] .note-btn{color:var(--paper-line);}
+  li.item .note-btn.has-note{color:var(--ink-soft);}
 
   .empty-search{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; text-align:center; color:var(--ink-soft); font-size:13px; padding:30px 0;}
 
@@ -139,6 +160,12 @@
   .modal-actions button{flex:1; padding:11px; border-radius:9px; border:none; font-size:14px; cursor:pointer;}
   .modal-actions .cancel{background:#EEE8D9; color:var(--ink-soft);}
   .modal-actions .confirm{background:var(--ink); color:#fff;}
+  .chips{display:flex; flex-wrap:wrap; gap:7px; margin:-4px 0 12px;}
+  .chip{
+    border:1px solid var(--paper-line); background:#fff; color:var(--ink-soft);
+    border-radius:20px; padding:5px 11px; font-size:12.5px; cursor:pointer;
+  }
+  .chips-label{font-size:11px; color:var(--ink-soft); margin-bottom:6px;}
 </style>
 </head>
 <body>
@@ -149,7 +176,10 @@
       <h1>Lista de <em>Compras</em></h1>
       <div class="subtitle">toque 1x: falta · toque 2x: no carrinho</div>
     </div>
-    <div class="sync-status"><span class="dot" id="syncDot"></span><span id="syncText">conectando...</span></div>
+    <div class="sync-status">
+      <span class="dot" id="syncDot"></span><span id="syncText">conectando...</span>
+      <button class="me-btn" id="btnMe">eu</button>
+    </div>
   </div>
   <div class="counts">
     <div class="count-pill need"><span class="num" id="countNeed">0</span>faltando</div>
@@ -176,7 +206,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getDatabase, ref, onValue, set, get } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBhVp-f2J9DeDy75NuR5eLkj05RBnuO8Ww",
@@ -192,6 +222,7 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const stateRef = ref(db, 'estadoItens');
 const customRef = ref(db, 'itensPersonalizados');
+const historyRef = ref(db, 'historicoAvulsos');
 
 const CATEGORIES = [
   { id: 'limpeza', name: 'Materiais de Limpeza', color: 'var(--limpeza)', items: [
@@ -211,17 +242,72 @@ const CATEGORIES = [
   ]},
   { id: 'higiene', name: 'Material de Higiene', color: 'var(--higiene)', items: [
     "Papel higiênico","Sabonete em barra","Pasta de dente","Escova de dente","Cotonete","Algodão","Desodorante","Sabonete infantil","Pasta de dente infantil","Escova de dente infantil","Shampoo infantil","Condicionador infantil","Lenço umedecido"
-  ]}
+  ]},
+  { id: 'avulsos', name: 'Avulsos', color: 'var(--avulsos)', items: [] }
 ];
 
-let state = {};
-let customItems = {};
+const PERSON_COLORS = ['#C1542C','#4C7A5A','#7C9CBF','#8A5FA0','#C98CA0','#B08A2E'];
+
+let state = {};        // key -> {s, note, by}
+let customItems = {};  // catId -> [names]
+let history = {};      // name -> timestamp
 let filterMode = 'all';
 let collapsed = {};
 let searchTerm = '';
 
+// ---- identidade local (por aparelho) ----
+let myName = localStorage.getItem('lc_user_name') || '';
+function updateMeBtn(){
+  document.getElementById('btnMe').textContent = myName ? initialsOf(myName) : 'eu';
+}
+function initialsOf(name){
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if(parts.length === 0) return '?';
+  if(parts.length === 1) return parts[0].slice(0,2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+function colorFor(name){
+  let sum = 0;
+  for(const ch of name) sum += ch.charCodeAt(0);
+  return PERSON_COLORS[sum % PERSON_COLORS.length];
+}
+function askName(prefill){
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <h3>Como você quer aparecer?</h3>
+      <input type="text" id="nameInput" placeholder="Nome ou iniciais (ex: Gustavo, GS)" maxlength="16" value="${prefill||''}">
+      <div class="modal-actions">
+        <button class="cancel" id="cancelName">Agora não</button>
+        <button class="confirm" id="confirmName">Salvar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  const input = document.getElementById('nameInput');
+  input.focus();
+  document.getElementById('cancelName').addEventListener('click', ()=> backdrop.remove());
+  backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+  document.getElementById('confirmName').addEventListener('click', ()=>{
+    const v = input.value.trim();
+    if(v){ myName = v; localStorage.setItem('lc_user_name', v); updateMeBtn(); }
+    backdrop.remove();
+  });
+}
+document.getElementById('btnMe').addEventListener('click', ()=> askName(myName));
+if(!myName){ setTimeout(()=> askName(''), 400); }
+updateMeBtn();
+
+// ---- utilidades de estado ----
 function safeKey(name){ return name.replace(/[.#$\[\]\/]/g, '_'); }
 function keyFor(catId, name){ return catId + '__' + safeKey(name); }
+
+function getMeta(catId, name){
+  const raw = state[keyFor(catId, name)];
+  if(raw == null) return {s:0, note:'', by:''};
+  if(typeof raw === 'number') return {s:raw, note:'', by:''};
+  return {s: raw.s||0, note: raw.note||'', by: raw.by||''};
+}
 
 let writeTimer = null;
 function scheduleWrite(){
@@ -233,9 +319,26 @@ function scheduleWrite(){
 
 function cycleState(catId, name){
   const k = keyFor(catId, name);
-  const cur = state[k] || 0;
-  const next = (cur + 1) % 3;
-  if(next === 0){ delete state[k]; } else { state[k] = next; }
+  const meta = getMeta(catId, name);
+  const next = (meta.s + 1) % 3;
+  if(next === 0){
+    delete state[k];
+  } else {
+    state[k] = { s: next, note: meta.note, by: myName || meta.by || '' };
+  }
+  render();
+  scheduleWrite();
+}
+
+function saveNote(catId, name, noteText){
+  const k = keyFor(catId, name);
+  const meta = getMeta(catId, name);
+  const newS = (meta.s === 0 && noteText.trim()) ? 1 : meta.s;
+  if(newS === 0 && !noteText.trim()){
+    delete state[k];
+  } else {
+    state[k] = { s: newS, note: noteText.trim(), by: myName || meta.by || '' };
+  }
   render();
   scheduleWrite();
 }
@@ -250,9 +353,9 @@ function countAll(){
   CATEGORIES.forEach(cat=>{
     allCategoryItems(cat).forEach(name=>{
       total++;
-      const s = state[keyFor(cat.id, name)] || 0;
-      if(s === 1) need++;
-      if(s === 2) cart++;
+      const m = getMeta(cat.id, name);
+      if(m.s === 1) need++;
+      if(m.s === 2) cart++;
     });
   });
   return {need, cart, total};
@@ -271,8 +374,8 @@ function render(){
 
   CATEGORIES.forEach(cat=>{
     const items = allCategoryItems(cat).filter(name=>{
-      const s = state[keyFor(cat.id, name)] || 0;
-      if(filterMode === 'need' && s !== 1) return false;
+      const m = getMeta(cat.id, name);
+      if(filterMode === 'need' && m.s !== 1) return false;
       if(term && !name.toLowerCase().includes(term)) return false;
       return true;
     });
@@ -283,7 +386,7 @@ function render(){
     catDiv.className = 'cat' + (collapsed[cat.id] ? ' collapsed' : '');
     catDiv.style.setProperty('--cat-color', cat.color);
 
-    const remaining = allCategoryItems(cat).filter(n => (state[keyFor(cat.id,n)]||0) === 1).length;
+    const remaining = allCategoryItems(cat).filter(n => getMeta(cat.id,n).s === 1).length;
 
     const head = document.createElement('div');
     head.className = 'cat-head';
@@ -296,12 +399,26 @@ function render(){
     const ul = document.createElement('ul');
     ul.className = 'items';
     items.forEach(name=>{
-      const s = state[keyFor(cat.id, name)] || 0;
+      const m = getMeta(cat.id, name);
       const li = document.createElement('li');
       li.className = 'item';
-      li.setAttribute('data-state', s);
-      const boxContent = s === 1 ? '!' : (s === 2 ? '✓' : '');
-      li.innerHTML = `<span class="box">${boxContent}</span><span class="item-name">${name}</span>`;
+      li.setAttribute('data-state', m.s);
+      const boxContent = m.s === 1 ? '!' : (m.s === 2 ? '✓' : '');
+
+      const initialsHtml = (m.s !== 0 && m.by)
+        ? `<span class="initials" style="background:${colorFor(m.by)}">${initialsOf(m.by)}</span>`
+        : '';
+      const noteHtml = m.note ? `<div class="item-note">${escapeHtml(m.note)}</div>` : '';
+
+      li.innerHTML = `<span class="box">${boxContent}</span>
+        <span class="item-text"><span class="item-name">${escapeHtml(name)}</span>${noteHtml}</span>
+        ${initialsHtml}
+        <button class="note-btn ${m.note ? 'has-note':''}" title="Nota/quantidade">✎</button>`;
+
+      li.querySelector('.note-btn').addEventListener('click', (e)=>{
+        e.stopPropagation();
+        openNoteModal(cat.id, name, m.note);
+      });
       li.addEventListener('click', ()=> cycleState(cat.id, name));
       ul.appendChild(li);
     });
@@ -320,12 +437,20 @@ function render(){
     cart > 0 && need === 0 ? 'Tudo que faltava já está no carrinho 🛒' : '';
 }
 
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 document.getElementById('searchInput').addEventListener('input', (e)=>{ searchTerm = e.target.value; render(); });
 document.getElementById('btnShowNeed').addEventListener('click', ()=>{ filterMode = 'need'; render(); });
 document.getElementById('btnShowAll').addEventListener('click', ()=>{ filterMode = 'all'; render(); });
 
 document.getElementById('btnNewTrip').addEventListener('click', ()=>{
-  Object.keys(state).forEach(k=>{ if(state[k] === 2) delete state[k]; });
+  Object.keys(state).forEach(k=>{
+    const raw = state[k];
+    const s = typeof raw === 'number' ? raw : (raw && raw.s);
+    if(s === 2) delete state[k];
+  });
   render();
   scheduleWrite();
 });
@@ -336,13 +461,46 @@ document.getElementById('btnMarkNeeded').addEventListener('click', ()=>{
 
 document.getElementById('btnAddItem').addEventListener('click', openAddModal);
 
+function openNoteModal(catId, name, currentNote){
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <h3>${escapeHtml(name)}</h3>
+      <input type="text" id="noteInput" placeholder="Quantidade ou observação (ex: 2 pacotes, sem lactose)" value="${escapeHtml(currentNote||'')}">
+      <div class="modal-actions">
+        <button class="cancel" id="cancelNote">Cancelar</button>
+        <button class="confirm" id="confirmNote">Salvar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  const input = document.getElementById('noteInput');
+  input.focus();
+  document.getElementById('cancelNote').addEventListener('click', ()=> backdrop.remove());
+  backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+  document.getElementById('confirmNote').addEventListener('click', ()=>{
+    saveNote(catId, name, input.value);
+    backdrop.remove();
+  });
+}
+
 function openAddModal(){
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
-  const catOptions = CATEGORIES.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  const catOptions = CATEGORIES.map(c=>`<option value="${c.id}" ${c.id==='avulsos'?'selected':''}>${c.name}</option>`).join('');
+
+  const recent = Object.entries(history)
+    .sort((a,b)=> b[1]-a[1])
+    .slice(0, 10)
+    .map(([n])=>n);
+  const chipsHtml = recent.length
+    ? `<div class="chips-label">Usados antes:</div><div class="chips">${recent.map(n=>`<button type="button" class="chip" data-name="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join('')}</div>`
+    : '';
+
   backdrop.innerHTML = `
     <div class="modal">
       <h3>Adicionar item</h3>
+      ${chipsHtml}
       <input type="text" id="newItemName" placeholder="Nome do item">
       <select id="newItemCat">${catOptions}</select>
       <div class="modal-actions">
@@ -354,13 +512,29 @@ function openAddModal(){
   document.getElementById('newItemName').focus();
   document.getElementById('cancelAdd').addEventListener('click', ()=> backdrop.remove());
   backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+
+  backdrop.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      document.getElementById('newItemName').value = chip.getAttribute('data-name');
+    });
+  });
+
   document.getElementById('confirmAdd').addEventListener('click', ()=>{
     const name = document.getElementById('newItemName').value.trim();
     const catId = document.getElementById('newItemCat').value;
     if(!name) return;
     if(!customItems[catId]) customItems[catId] = [];
-    customItems[catId].push(name);
-    set(customRef, customItems).catch(e=> console.error('Falha ao salvar item novo', e));
+    if(!customItems[catId].includes(name)){
+      customItems[catId].push(name);
+      set(customRef, customItems).catch(e=> console.error('Falha ao salvar item novo', e));
+    }
+    history[name] = Date.now();
+    set(historyRef, history).catch(e=> console.error('Falha ao salvar histórico', e));
+
+    const k = keyFor(catId, name);
+    state[k] = { s: 1, note: '', by: myName || '' };
+    scheduleWrite();
+
     backdrop.remove();
     render();
   });
@@ -379,6 +553,10 @@ onValue(stateRef, (snapshot)=>{
 onValue(customRef, (snapshot)=>{
   customItems = snapshot.val() || {};
   render();
+});
+
+onValue(historyRef, (snapshot)=>{
+  history = snapshot.val() || {};
 });
 </script>
 </body>
